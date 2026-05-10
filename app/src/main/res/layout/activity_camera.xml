@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/cameraLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".CameraActivity">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000" />
+
+    <ImageButton
+        android:id="@+id/playPauseButton"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="140dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="Play/Pause Audio"
+        android:scaleType="fitCenter"
+        android:src="@android:drawable/ic_media_play" /> <ImageButton
+    android:id="@+id/switchCameraButton"
+    android:layout_width="60dp"
+    android:layout_height="60dp"
+    android:layout_alignParentBottom="true"
+    android:layout_alignParentEnd="true"
+    android:layout_margin="24dp"
+    android:background="@android:color/transparent"
+    android:contentDescription="Switch Camera"
+    android:scaleType="fitCenter"
+    android:src="@drawable/ics" />
+
+    <ImageButton
+        android:id="@+id/captureButton"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="40dp"
+        android:background="@drawable/cbg"
+        android:contentDescription="Capture"
+        android:scaleType="centerInside" />
+
+    <ImageView
+        android:id="@+id/thumbnailPreview"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:layout_margin="24dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/thumbnail_b"
+        android:contentDescription="Recent Image Thumbnail" />
+
+</RelativeLayout>
