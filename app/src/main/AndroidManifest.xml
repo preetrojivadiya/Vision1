@@ -6,10 +6,10 @@
         android:name="android.hardware.camera"
         android:required="true" />
 
-        <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-        <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-        <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
-        <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:allowBackup="true"
@@ -23,11 +23,15 @@
         tools:targetApi="31"
         android:requestLegacyExternalStorage="true">
 
-
         <activity android:name=".CameraActivity"/>
         <activity android:name=".StorageActivity"/>
         <activity android:name=".ImageGalleryActivity"/>
         <activity android:name=".IdentifyActivity"/>
+
+        <activity android:name=".ProfileActivity"/>
+        <activity android:name=".PersonalDetailsActivity"/>
+        <activity android:name=".SettingsActivity"/>
+        <activity android:name=".EditHomeLayoutActivity"/>
 
         <activity
             android:name=".MainActivity"
@@ -49,6 +53,5 @@
         </provider>
 
     </application>
-
 
 </manifest>
