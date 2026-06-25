@@ -1,9 +1,11 @@
 package com.example.vision1;
 
+import android.content.ClipData;
 import android.content.Context;
 import android.graphics.BitmapFactory;
 import android.media.ThumbnailUtils;
 import android.provider.MediaStore;
+import android.view.DragEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,141 +13,187 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
 import java.util.List;
 
-public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder> {
+public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private List<StoredDocument> documentList; // Changed from List<File>
+    private List<StorageItem> itemList;
     private Context context;
-    private OnItemClickListener listener; // Interface for click events
+    private OnItemInteractionListener listener;
 
-    // Interface to handle clicks back to the Activity/Fragment
-    public interface OnItemClickListener {
+    public interface OnItemInteractionListener {
         void onFileClick(StoredDocument document);
         void onAudioPlayClick(StoredDocument document);
+        void onCollectionClick(DocumentCollection collection);
+        void onCollectionLongClick(DocumentCollection collection, View anchorView);
+        void onItemDropped(StorageItem draggedItem, StorageItem targetItem);
     }
 
-    /**
-     * Constructor for the FileAdapter.
-     *
-     * @param context      The context.
-     * @param documentList The list of StoredDocument objects to display.
-     * @param listener     The click listener for handling item clicks.
-     */
-    public FileAdapter(Context context, List<StoredDocument> documentList, OnItemClickListener listener) {
+    public FileAdapter(Context context, List<StorageItem> itemList, OnItemInteractionListener listener) {
         this.context = context;
-        this.documentList = documentList;
+        this.itemList = itemList;
         this.listener = listener;
     }
 
     @Override
-    public FileViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-        // Inflate the item layout (using the potentially modified item_file.xml)
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_file, parent, false);
-        return new FileViewHolder(view);
+    public int getItemViewType(int position) {
+        return itemList.get(position).getItemType();
+    }
+
+    @NonNull
+    @Override
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == StorageItem.TYPE_COLLECTION) {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_storage_collection, parent, false);
+            return new CollectionViewHolder(view);
+        } else {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_storage_document, parent, false);
+            return new DocumentViewHolder(view);
+        }
     }
 
     @Override
-    public void onBindViewHolder(FileViewHolder holder, int position) {
-        StoredDocument document = documentList.get(position);
-        File originalFile = new File(document.getOriginalFilePath()); // Get the original file details
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        StorageItem item = itemList.get(position);
 
-        // Set the file name
-        holder.textView.setText(originalFile.getName());
-
-        // Set the file preview icon based on the original file's type
-        if (isImage(originalFile)) {
-            holder.imageView.setImageBitmap(BitmapFactory.decodeFile(originalFile.getAbsolutePath()));
-        } else if (isVideo(originalFile)) {
-            holder.imageView.setImageBitmap(ThumbnailUtils.createVideoThumbnail(originalFile.getAbsolutePath(), MediaStore.Images.Thumbnails.MINI_KIND));
-        } else if (isPdf(originalFile)) {
-            // Assuming you have ic_pdf in your drawable resources
-            holder.imageView.setImageResource(R.drawable.ic_pdf);
+        // --- Setup Drag and Drop Mechanics ---
+        // Allow ONLY documents to be dragged (you cannot drag a collection inside another collection)
+        if (item.getItemType() == StorageItem.TYPE_DOCUMENT) {
+            holder.itemView.setOnLongClickListener(v -> {
+                ClipData data = ClipData.newPlainText("", "");
+                View.DragShadowBuilder shadowBuilder = new View.DragShadowBuilder(v);
+                // We pass the actual item as the "Local State" so we know EXACTLY what was dragged
+                v.startDragAndDrop(data, shadowBuilder, item, 0);
+                return true;
+            });
         } else {
-            // Assuming you have ic_file as a default icon
-            holder.imageView.setImageResource(R.drawable.ic_file);
+            // Collections listen for Long Clicks to trigger Edit/Delete menu
+            holder.itemView.setOnLongClickListener(v -> {
+                listener.onCollectionLongClick((DocumentCollection) item, v);
+                return true;
+            });
         }
 
-        // --- Handle Visibility of Audio Button and Progress ---
-        if (document.isProcessing()) {
-            // If processing, show progress, hide play button
-            holder.audioPlayButton.setVisibility(View.GONE);
-            holder.processingProgress.setVisibility(View.VISIBLE);
-        } else {
-            // If not processing, hide progress
-            holder.processingProgress.setVisibility(View.GONE);
+        // Allow both Documents and Collections to act as DROP TARGETS
+        holder.itemView.setOnDragListener((v, event) -> {
+            switch (event.getAction()) {
+                case DragEvent.ACTION_DRAG_ENTERED:
+                    v.setAlpha(0.6f); // Visual feedback when hovering over an item
+                    break;
+                case DragEvent.ACTION_DRAG_EXITED:
+                case DragEvent.ACTION_DRAG_ENDED:
+                    v.setAlpha(1.0f); // Restore transparency
+                    break;
+                case DragEvent.ACTION_DROP:
+                    v.setAlpha(1.0f);
+                    StorageItem draggedItem = (StorageItem) event.getLocalState();
+                    if (draggedItem != item) { // Make sure they didn't drop it on itself
+                        listener.onItemDropped(draggedItem, item);
+                    }
+                    break;
+            }
+            return true;
+        });
 
-            // Check if an audio file path exists and the file actually exists
-            if (document.getAudioFilePath() != null && new File(document.getAudioFilePath()).exists()) {
-                // If audio exists, show the play button
-                holder.audioPlayButton.setVisibility(View.VISIBLE);
+        // --- Render UI ---
+        if (holder instanceof DocumentViewHolder) {
+            StoredDocument doc = (StoredDocument) item;
+            DocumentViewHolder docHolder = (DocumentViewHolder) holder;
+            File originalFile = new File(doc.getOriginalFilePath());
+
+            docHolder.fileName.setText(originalFile.getName());
+
+            if (isImage(originalFile)) {
+                docHolder.filePreview.setImageBitmap(BitmapFactory.decodeFile(originalFile.getAbsolutePath()));
+            } else if (isVideo(originalFile)) {
+                docHolder.filePreview.setImageBitmap(ThumbnailUtils.createVideoThumbnail(originalFile.getAbsolutePath(), MediaStore.Images.Thumbnails.MINI_KIND));
             } else {
-                // If no audio file or file doesn't exist, hide the play button
-                holder.audioPlayButton.setVisibility(View.GONE);
+                docHolder.filePreview.setImageResource(android.R.drawable.ic_menu_agenda); // fallback generic icon
             }
+
+            if (doc.isProcessing()) {
+                docHolder.audioPlayButton.setVisibility(View.GONE);
+                docHolder.processingProgress.setVisibility(View.VISIBLE);
+            } else {
+                docHolder.processingProgress.setVisibility(View.GONE);
+                if (doc.getAudioFilePath() != null && new File(doc.getAudioFilePath()).exists()) {
+                    docHolder.audioPlayButton.setVisibility(View.VISIBLE);
+                } else {
+                    docHolder.audioPlayButton.setVisibility(View.GONE);
+                }
+            }
+
+            docHolder.itemView.setOnClickListener(v -> listener.onFileClick(doc));
+            docHolder.audioPlayButton.setOnClickListener(v -> listener.onAudioPlayClick(doc));
+
+        } else if (holder instanceof CollectionViewHolder) {
+            DocumentCollection collection = (DocumentCollection) item;
+            CollectionViewHolder colHolder = (CollectionViewHolder) holder;
+
+            colHolder.collectionName.setText(collection.getName());
+
+            // Render up to 4 mini previews
+            ImageView[] previews = {colHolder.prev1, colHolder.prev2, colHolder.prev3, colHolder.prev4};
+            List<StoredDocument> docs = collection.getDocuments();
+
+            for (int i = 0; i < 4; i++) {
+                if (i < docs.size()) {
+                    previews[i].setVisibility(View.VISIBLE);
+                    File f = new File(docs.get(i).getOriginalFilePath());
+                    if (isImage(f)) { previews[i].setImageBitmap(BitmapFactory.decodeFile(f.getAbsolutePath())); }
+                    else { previews[i].setImageResource(android.R.drawable.ic_menu_agenda); }
+                } else {
+                    previews[i].setVisibility(View.INVISIBLE);
+                }
+            }
+
+            colHolder.itemView.setOnClickListener(v -> listener.onCollectionClick(collection));
         }
-        // --- End Handle Visibility ---
-
-
-        // --- Set Click Listeners ---
-        // Click listener for the original file info area (icon + name container)
-        // This should trigger opening the document
-        holder.fileInfoContainer.setOnClickListener(v -> {
-            if (listener != null) {
-                listener.onFileClick(document); // Call the interface method
-            }
-        });
-
-        // Click listener for the audio play button
-        // This should trigger playing the audio file
-        holder.audioPlayButton.setOnClickListener(v -> {
-            if (listener != null && document.getAudioFilePath() != null) {
-                listener.onAudioPlayClick(document); // Call the interface method
-            }
-        });
-        // --- End Set Click Listeners ---
     }
 
     @Override
     public int getItemCount() {
-        return documentList.size();
+        return itemList.size();
     }
 
-    /**
-     * ViewHolder class to hold references to the views in the item layout.
-     */
-    public static class FileViewHolder extends RecyclerView.ViewHolder {
-        TextView textView; // file_name
-        ImageView imageView; // file_preview
-        View fileInfoContainer; // The container view for icon and name (e.g., LinearLayout in item_file.xml)
-        ImageView audioPlayButton; // The play icon/button for audio
-        ProgressBar processingProgress; // Optional progress indicator
+    public void updateList(List<StorageItem> newList) {
+        itemList = newList;
+        notifyDataSetChanged();
+    }
 
-        public FileViewHolder(View itemView) {
+    static class DocumentViewHolder extends RecyclerView.ViewHolder {
+        TextView fileName;
+        ImageView filePreview;
+        ImageView audioPlayButton;
+        ProgressBar processingProgress;
+
+        public DocumentViewHolder(View itemView) {
             super(itemView);
-            // Initialize views by finding them by their IDs from the item_file.xml layout
-            fileInfoContainer = itemView.findViewById(R.id.file_info_container); // Get the container view
-            textView = itemView.findViewById(R.id.file_name);
-            imageView = itemView.findViewById(R.id.file_preview);
+            fileName = itemView.findViewById(R.id.file_name);
+            filePreview = itemView.findViewById(R.id.file_preview);
             audioPlayButton = itemView.findViewById(R.id.audio_play_button);
             processingProgress = itemView.findViewById(R.id.processing_progress);
         }
     }
 
-    /**
-     * Updates the list of documents displayed by the adapter.
-     *
-     * @param newList The new list of StoredDocument objects.
-     */
-    public void updateDocumentList(List<StoredDocument> newList) { // Changed method name and parameter type
-        documentList = newList;
-        notifyDataSetChanged(); // Notify RecyclerView to refresh
+    static class CollectionViewHolder extends RecyclerView.ViewHolder {
+        TextView collectionName;
+        ImageView prev1, prev2, prev3, prev4;
+
+        public CollectionViewHolder(View itemView) {
+            super(itemView);
+            collectionName = itemView.findViewById(R.id.collection_name);
+            prev1 = itemView.findViewById(R.id.prev1);
+            prev2 = itemView.findViewById(R.id.prev2);
+            prev3 = itemView.findViewById(R.id.prev3);
+            prev4 = itemView.findViewById(R.id.prev4);
+        }
     }
 
-    // --- Helper methods to determine file type (can remain similar) ---
     private boolean isImage(File file) {
         String name = file.getName().toLowerCase();
         return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".gif");
@@ -155,9 +203,4 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
         String name = file.getName().toLowerCase();
         return name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov");
     }
-
-    private boolean isPdf(File file) {
-        return file.getName().toLowerCase().endsWith(".pdf");
-    }
-    // --- End Helper methods ---
 }

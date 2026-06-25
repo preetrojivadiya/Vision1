@@ -1,7 +1,9 @@
 package com.example.vision1;
 
-
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.media.MediaPlayer;
 import android.net.Uri;
@@ -9,20 +11,28 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.OpenableColumns;
 import android.util.Log;
-import android.widget.Button;
-import android.widget.Toast;
+import android.view.Menu;
+import android.view.View;
 import android.webkit.MimeTypeMap;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.PopupMenu;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.work.Data;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,101 +42,258 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-public class StorageActivity extends AppCompatActivity implements FileAdapter.OnItemClickListener { // Implement the click listener
+public class StorageActivity extends AppCompatActivity implements FileAdapter.OnItemInteractionListener {
 
     private static final String TAG = "StorageActivity";
-    private File visionDocumentsFolder; // The directory where files are stored
+    private File visionDocumentsFolder;
 
-    // Changed from FileAdapter fileAdapter;
     private FileAdapter fileAdapter;
-
-    // Changed from List<File> fileList = new ArrayList<>();
-    // List to hold custom StoredDocument objects
-    private List<StoredDocument> documentList = new ArrayList<>();
-
+    private List<StorageItem> mainStorageList = new ArrayList<>();
     private WorkManager workManager;
-
-    // MediaPlayer for audio playback
     private MediaPlayer mediaPlayer;
-    // Keep track of the document whose audio is currently playing
     private StoredDocument currentlyPlayingDocument = null;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_storage);
 
-        // Initialize WorkManager instance
+        // Remove VISION top bar text
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+
         workManager = WorkManager.getInstance(getApplicationContext());
 
-        // --- Setup the storage directory ---
-        // Using getExternalFilesDir is recommended for app-specific files
-        // as it doesn't require explicit WRITE_EXTERNAL_STORAGE permission on modern Android.
+        // Setup File Directory
         File documentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
-        if (documentsDir == null) {
-            Log.e(TAG, "External documents directory not available.");
-            Toast.makeText(this, "Storage not available.", Toast.LENGTH_LONG).show();
-            // Consider disabling file adding/loading features if storage is not available
-            return; // Exit onCreate if storage is critical
-        }
-
+        if (documentsDir == null) return;
         File visionFolder = new File(documentsDir, "Vision");
         visionDocumentsFolder = new File(visionFolder, "Documents");
+        if (!visionDocumentsFolder.exists()) visionDocumentsFolder.mkdirs();
 
-        if (!visionDocumentsFolder.exists()) {
-            boolean created = visionDocumentsFolder.mkdirs();
-            if (created) {
-                Log.d(TAG, "Documents folder created successfully at: " + visionDocumentsFolder.getAbsolutePath());
-            } else {
-                Log.e(TAG, "Failed to create Documents folder at: " + visionDocumentsFolder.getAbsolutePath());
-                Toast.makeText(this, "Failed to create app storage folder.", Toast.LENGTH_LONG).show();
-                // Handle error: maybe disable adding documents
-            }
-        }
-        // --- End Setup storage directory ---
-
-
-        // Setup RecyclerView
+        // Setup Grid RecyclerView (Span Count 3 for uniform squares)
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
 
-        // Changed adapter initialization - pass the document list and 'this' as the listener
-        fileAdapter = new FileAdapter(this, documentList, this);
+        fileAdapter = new FileAdapter(this, mainStorageList, this);
         recyclerView.setAdapter(fileAdapter);
 
-        // Load existing documents initially
-        loadDocuments();
+        loadFilesAndCollections();
 
-        // Set up the "Add Document" button click listener
         Button addDocumentButton = findViewById(R.id.btnAddDocument);
         addDocumentButton.setOnClickListener(view -> openFilePicker());
 
-        // Observe WorkManager tasks related to document processing
         observeDocumentProcessingWork();
     }
+
+    // =============================
+    // DRAG AND DROP & COLLECTIONS
+    // =============================
+
+    @Override
+    public void onItemDropped(StorageItem draggedItem, StorageItem targetItem) {
+        if (!(draggedItem instanceof StoredDocument)) return; // Prevents dragging folders
+
+        StoredDocument draggedDoc = (StoredDocument) draggedItem;
+
+        if (targetItem instanceof StoredDocument) {
+            // MERGE: Dropped Document onto Document -> Create New Collection
+            StoredDocument targetDoc = (StoredDocument) targetItem;
+
+            DocumentCollection newCollection = new DocumentCollection("New Collection");
+            newCollection.addDocument(draggedDoc);
+            newCollection.addDocument(targetDoc);
+
+            mainStorageList.remove(draggedDoc);
+            mainStorageList.remove(targetDoc);
+            mainStorageList.add(0, newCollection); // Add folder to beginning of grid
+
+            saveCollectionsToPrefs();
+            fileAdapter.notifyDataSetChanged();
+            Toast.makeText(this, "Collection Created", Toast.LENGTH_SHORT).show();
+
+        } else if (targetItem instanceof DocumentCollection) {
+            // MERGE: Dropped Document onto Collection -> Add to Collection
+            DocumentCollection collection = (DocumentCollection) targetItem;
+            collection.addDocument(draggedDoc);
+
+            mainStorageList.remove(draggedDoc);
+
+            saveCollectionsToPrefs();
+            fileAdapter.notifyDataSetChanged();
+            Toast.makeText(this, "Added to " + collection.getName(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onCollectionClick(DocumentCollection collection) {
+        // Open a dialog showing the documents inside the folder
+        Dialog dialog = new Dialog(this);
+        dialog.setContentView(R.layout.dialog_collection);
+
+        androidx.appcompat.widget.AppCompatTextView title = dialog.findViewById(R.id.dialog_title);
+        title.setText(collection.getName());
+
+        RecyclerView rv = dialog.findViewById(R.id.collection_recycler);
+        rv.setLayoutManager(new GridLayoutManager(this, 3));
+
+        // Pass only the documents inside this collection to a fresh adapter
+        List<StorageItem> collectionItems = new ArrayList<>(collection.getDocuments());
+        FileAdapter dialogAdapter = new FileAdapter(this, collectionItems, new FileAdapter.OnItemInteractionListener() {
+            @Override public void onFileClick(StoredDocument document) { openFile(new File(document.getOriginalFilePath())); }
+            @Override public void onAudioPlayClick(StoredDocument document) { playAudio(new File(document.getAudioFilePath()), document); }
+            @Override public void onCollectionClick(DocumentCollection c) {} // Ignored inside dialog
+            @Override public void onCollectionLongClick(DocumentCollection c, View v) {} // Ignored
+            @Override public void onItemDropped(StorageItem dragged, StorageItem target) {} // Drag disabled inside folder view
+        });
+        rv.setAdapter(dialogAdapter);
+        dialog.show();
+    }
+
+    @Override
+    public void onCollectionLongClick(DocumentCollection collection, View anchorView) {
+        PopupMenu popup = new PopupMenu(this, anchorView);
+        popup.getMenu().add(Menu.NONE, 1, 1, "Edit Name");
+        popup.getMenu().add(Menu.NONE, 2, 2, "Delete Collection");
+
+        popup.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1) {
+                // EDIT
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("Edit Collection Name");
+                final EditText input = new EditText(this);
+                input.setText(collection.getName());
+                builder.setView(input);
+                builder.setPositiveButton("Save", (dialog, which) -> {
+                    collection.setName(input.getText().toString());
+                    saveCollectionsToPrefs();
+                    fileAdapter.notifyDataSetChanged();
+                });
+                builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+                builder.show();
+            } else if (item.getItemId() == 2) {
+                // DELETE
+                mainStorageList.remove(collection);
+                // Extract all documents back to the main layout
+                mainStorageList.addAll(collection.getDocuments());
+                saveCollectionsToPrefs();
+                fileAdapter.notifyDataSetChanged();
+                Toast.makeText(this, "Collection Deleted", Toast.LENGTH_SHORT).show();
+            }
+            return true;
+        });
+        popup.show();
+    }
+
+    // =============================
+    // SAVING AND LOADING (JSON)
+    // =============================
+
+    private void saveCollectionsToPrefs() {
+        SharedPreferences prefs = getSharedPreferences("VisionStorage", MODE_PRIVATE);
+        JSONArray jsonArray = new JSONArray();
+        try {
+            for (StorageItem item : mainStorageList) {
+                if (item instanceof DocumentCollection) {
+                    DocumentCollection col = (DocumentCollection) item;
+                    JSONObject colObj = new JSONObject();
+                    colObj.put("id", col.getId());
+                    colObj.put("name", col.getName());
+                    JSONArray docsArray = new JSONArray();
+                    for (StoredDocument d : col.getDocuments()) {
+                        docsArray.put(d.getOriginalFilePath());
+                    }
+                    colObj.put("documents", docsArray);
+                    jsonArray.put(colObj);
+                }
+            }
+            prefs.edit().putString("collections_data", jsonArray.toString()).apply();
+        } catch (JSONException e) {
+            Log.e(TAG, "Error saving collections", e);
+        }
+    }
+
+    private void loadFilesAndCollections() {
+        mainStorageList.clear();
+        List<StoredDocument> physicalFiles = new ArrayList<>();
+
+        // 1. Load physical files from disk
+        if (visionDocumentsFolder.exists() && visionDocumentsFolder.isDirectory()) {
+            File[] files = visionDocumentsFolder.listFiles();
+            if (files != null) {
+                Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
+                for (File file : files) {
+                    if (!file.getName().toLowerCase().endsWith("_audio.mp3")) {
+                        StoredDocument doc = new StoredDocument(file.getAbsolutePath());
+
+                        String baseName = file.getName();
+                        int dotIndex = baseName.lastIndexOf('.');
+                        if (dotIndex > 0) baseName = baseName.substring(0, dotIndex);
+                        File audioFile = new File(visionDocumentsFolder, baseName + "_audio.mp3");
+
+                        if (audioFile.exists() && audioFile.length() > 0) {
+                            doc.setAudioFilePath(audioFile.getAbsolutePath());
+                        }
+                        physicalFiles.add(doc);
+                    }
+                }
+            }
+        }
+
+        // 2. Load logic groupings (Collections) from JSON
+        SharedPreferences prefs = getSharedPreferences("VisionStorage", MODE_PRIVATE);
+        String collectionsData = prefs.getString("collections_data", "[]");
+
+        try {
+            JSONArray jsonArray = new JSONArray(collectionsData);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject colObj = jsonArray.getJSONObject(i);
+                DocumentCollection collection = new DocumentCollection(colObj.getString("id"), colObj.getString("name"));
+
+                JSONArray docsArray = colObj.getJSONArray("documents");
+                for (int j = 0; j < docsArray.length(); j++) {
+                    String path = docsArray.getString(j);
+                    // Find document in physical files and move it to collection
+                    for (int k = 0; k < physicalFiles.size(); k++) {
+                        if (physicalFiles.get(k).getOriginalFilePath().equals(path)) {
+                            collection.addDocument(physicalFiles.get(k));
+                            physicalFiles.remove(k);
+                            break;
+                        }
+                    }
+                }
+                // Only add collections that aren't empty
+                if (!collection.getDocuments().isEmpty()) {
+                    mainStorageList.add(collection);
+                }
+            }
+        } catch (JSONException e) {
+            Log.e(TAG, "Error parsing collections JSON", e);
+        }
+
+        // 3. Add any remaining individual physical files not assigned to a collection
+        mainStorageList.addAll(physicalFiles);
+        fileAdapter.updateList(mainStorageList);
+    }
+
+    // =============================
+    // EXISTING FILE & WORKER LOGIC
+    // =============================
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Release MediaPlayer resources when the activity is destroyed
         releaseMediaPlayer();
-        // Consider shutting down TTS if you initialized it directly in the Activity (though it's in Worker now)
     }
-
-
-     //Releases the MediaPlayer resources.
 
     private void releaseMediaPlayer() {
         if (mediaPlayer != null) {
-            mediaPlayer.release(); // Release the MediaPlayer instance
+            mediaPlayer.release();
             mediaPlayer = null;
-            currentlyPlayingDocument = null; // Clear the currently playing document reference
+            currentlyPlayingDocument = null;
         }
     }
-
-
-    //Handles the result from the file picker.
 
     private final ActivityResultLauncher<Intent> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -134,420 +301,163 @@ public class StorageActivity extends AppCompatActivity implements FileAdapter.On
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     Uri selectedFileUri = result.getData().getData();
                     if (selectedFileUri != null) {
-                        // Instead of copying here, start the processing worker
                         startDocumentProcessing(selectedFileUri);
-                    } else {
-                        Toast.makeText(this, "No file selected.", Toast.LENGTH_SHORT).show();
                     }
-                } else {
-                    Log.d(TAG, "File picking cancelled or failed.");
-                    Toast.makeText(this, "File selection cancelled.", Toast.LENGTH_SHORT).show();
                 }
             });
-
-
-     //Opens the system file picker to select a document.
 
     private void openFilePicker() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        // Use specific MIME types if you only support certain document types
-        intent.setType("*/*"); // Allows selection of any file type
-
-        // Add extra for showing only local files if needed (behavior can vary)
-        // intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
-
-        try {
-            filePickerLauncher.launch(intent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error launching file picker: " + e.getMessage(), e);
-            Toast.makeText(this, "Could not open file picker.", Toast.LENGTH_SHORT).show();
-        }
+        intent.setType("*/*");
+        filePickerLauncher.launch(intent);
     }
 
-    /**
-     * Starts the background WorkManager task to process the selected document.
-     *
-     * @param fileUri The URI of the selected file.
-     */
     private void startDocumentProcessing(Uri fileUri) {
-        // Create input data for the worker, including the file URI
         Data inputData = new Data.Builder()
                 .putString(DocumentProcessingWorker.INPUT_URI, fileUri.toString())
                 .build();
 
-        // Create a unique tag for this type of work, or even a unique ID for each request
-        String workTag = "document_processing";
-
-        // Create a Work Request for the DocumentProcessingWorker
         OneTimeWorkRequest processRequest = new OneTimeWorkRequest.Builder(DocumentProcessingWorker.class)
                 .setInputData(inputData)
-                .addTag(workTag) // Add a tag to easily observe this type of work
-                // You can add constraints here (e.g., requires network, battery)
-                // .setConstraints(...)
+                .addTag("document_processing")
                 .build();
 
-        // Enqueue the work request with WorkManager
         workManager.enqueue(processRequest);
 
-        // --- Optional: Immediately add a processing entry to the list for UI feedback ---
-        // This provides instant feedback to the user that processing has started.
-        // We need a temporary StoredDocument object. The worker will later provide the final path.
-        // Getting the file name from the URI immediately is helpful for this temporary entry.
         String fileName = getFileNameFromUri(fileUri);
-        // Create a temporary path representation. The worker will create the actual file.
-        // This temporary path might not exist on disk yet.
         File tempFileRepresentation = new File(visionDocumentsFolder, fileName);
-
-        // Create a StoredDocument with the processing state true
         StoredDocument processingDoc = new StoredDocument(tempFileRepresentation.getAbsolutePath());
         processingDoc.setProcessing(true);
 
-        // Add this temporary entry to the top of the list and notify the adapter
-        documentList.add(0, processingDoc);
+        mainStorageList.add(0, processingDoc);
         fileAdapter.notifyItemInserted(0);
-        // Scroll to the top to show the new item (optional)
+
+        // ADD THIS: Auto-scroll to the top so the user instantly sees the new file
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.scrollToPosition(0);
+        recyclerView.smoothScrollToPosition(0);
 
-        Toast.makeText(this, "Processing document: " + fileName, Toast.LENGTH_SHORT).show();
-        // --- End Optional UI Feedback ---
+        Toast.makeText(this, "Processing: " + fileName, Toast.LENGTH_SHORT).show();
     }
-
-
-    /**
-     * Loads existing documents (and their associated audio files) from the storage folder.
-     */
-    private void loadDocuments() {
-        documentList.clear(); // Clear the current list
-        if (visionDocumentsFolder.exists() && visionDocumentsFolder.isDirectory()) {
-            File[] files = visionDocumentsFolder.listFiles();
-            if (files != null) {
-                // Sort files if needed (e.g., by last modified date, newest first)
-                Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
-
-                for (File file : files) {
-                    // We only want to add the original document file to the list.
-                    // The audio file will be linked to it.
-                    // Check if the file name ends with "_audio.mp3" (our naming convention)
-                    if (!file.getName().toLowerCase().endsWith("_audio.mp3")) {
-                        String originalFilePath = file.getAbsolutePath();
-
-                        // Construct the expected audio file path based on naming convention
-                        String baseName = file.getName();
-                        int dotIndex = baseName.lastIndexOf('.');
-                        if (dotIndex > 0) {
-                            baseName = baseName.substring(0, dotIndex);
-                        }
-                        String audioFileName = baseName + "_audio.mp3";
-                        File audioFile = new File(visionDocumentsFolder, audioFileName);
-
-                        // Create the StoredDocument object
-                        StoredDocument doc = new StoredDocument(originalFilePath);
-
-                        // Check if the corresponding audio file exists and set the audio path
-                        if (audioFile.exists() && audioFile.length() > 0) {
-                            doc.setAudioFilePath(audioFile.getAbsolutePath());
-                        }
-
-                        // Add the document to our list
-                        documentList.add(doc);
-                    }
-                }
-            } else {
-                Log.d(TAG, "Documents folder is empty or listFiles returned null.");
-            }
-        } else {
-            Log.d(TAG, "Documents folder does not exist or is not a directory.");
-        }
-        // Notify the adapter that the data set has changed
-        fileAdapter.updateDocumentList(documentList);
-    }
-
-
-     //Observes the state of WorkManager tasks to update the UI.
 
     private void observeDocumentProcessingWork() {
-        // Get LiveData for WorkInfos by the tag we used when enqueuing
         workManager.getWorkInfosByTagLiveData("document_processing").observe(this, workInfos -> {
-            if (workInfos == null || workInfos.isEmpty()) {
-                return; // No work info found
-            }
+            if (workInfos == null || workInfos.isEmpty()) return;
 
-            // Iterate through the list of WorkInfo objects
             for (WorkInfo workInfo : workInfos) {
                 Data outputData = workInfo.getOutputData();
-                // Get the original file path from the worker's output data
                 String originalPath = outputData.getString(DocumentProcessingWorker.OUTPUT_ORIGINAL_PATH);
 
-                // Find the index of the corresponding StoredDocument in our list
-                // We need to match based on the original file path
                 int index = -1;
-                // Iterate backwards to safely remove/update if needed, or just update
-                for (int i = documentList.size() - 1; i >= 0; i--) {
-                    StoredDocument document = documentList.get(i);
-                    // Match using the original file path
-                    if (document.getOriginalFilePath().equals(originalPath)) {
-                        index = i;
-                        break; // Found the document
+                for (int i = mainStorageList.size() - 1; i >= 0; i--) {
+                    if (mainStorageList.get(i) instanceof StoredDocument) {
+                        StoredDocument document = (StoredDocument) mainStorageList.get(i);
+                        if (document.getOriginalFilePath().equals(originalPath)) {
+                            index = i;
+                            break;
+                        }
                     }
-                    // Optional: If you used a unique ID in StoredDocument and passed it to the worker,
-                    // you could match by ID instead for better reliability.
                 }
 
-                // If the document was found in our list
                 if (index != -1) {
-                    StoredDocument documentToUpdate = documentList.get(index);
+                    StoredDocument documentToUpdate = (StoredDocument) mainStorageList.get(index);
 
-                    // Update the StoredDocument based on the WorkInfo state
                     if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
-                        Log.d(TAG, "Worker SUCCEEDED for " + originalPath);
                         String audioPath = outputData.getString(DocumentProcessingWorker.OUTPUT_AUDIO_PATH);
-                        documentToUpdate.setAudioFilePath(audioPath); // Set the generated audio path
-                        documentToUpdate.setProcessing(false); // Processing is complete
-                        fileAdapter.notifyItemChanged(index); // Notify adapter to update this item
-
-                    } else if (workInfo.getState() == WorkInfo.State.FAILED) {
-                        Log.e(TAG, "Worker FAILED for " + originalPath);
-                        documentToUpdate.setAudioFilePath(null); // No audio on failure
-                        documentToUpdate.setProcessing(false); // Processing is complete
-                        fileAdapter.notifyItemChanged(index); // Notify adapter to update this item
-                        Toast.makeText(this, "Failed to process document: " + new File(originalPath).getName(), Toast.LENGTH_LONG).show();
-
-                    } else if (workInfo.getState() == WorkInfo.State.CANCELLED) {
-                        Log.w(TAG, "Worker CANCELLED for " + originalPath);
-                        documentToUpdate.setAudioFilePath(null); // No audio on cancellation
-                        documentToUpdate.setProcessing(false); // Processing is complete
-                        fileAdapter.notifyItemChanged(index); // Notify adapter to update this item
-                        Toast.makeText(this, "Document processing cancelled: " + new File(originalPath).getName(), Toast.LENGTH_LONG).show();
-
+                        documentToUpdate.setAudioFilePath(audioPath);
+                        documentToUpdate.setProcessing(false);
+                        fileAdapter.notifyItemChanged(index);
+                    } else if (workInfo.getState() == WorkInfo.State.FAILED || workInfo.getState() == WorkInfo.State.CANCELLED) {
+                        documentToUpdate.setAudioFilePath(null);
+                        documentToUpdate.setProcessing(false);
+                        fileAdapter.notifyItemChanged(index);
                     } else if (workInfo.getState() == WorkInfo.State.RUNNING) {
-                        // The worker is currently running
-                        Log.d(TAG, "Worker RUNNING for " + originalPath);
-                        documentToUpdate.setProcessing(true); // Ensure processing state is true
-                        fileAdapter.notifyItemChanged(index); // Update UI to show progress
-
+                        documentToUpdate.setProcessing(true);
+                        fileAdapter.notifyItemChanged(index);
                     }
-                    // Add other states like ENQUEUED if you want to show a pending state
-
-                } else {
-                    // This scenario might occur if the app was closed and reopened
-                    // while a worker for a new file was running.
-                    // The 'processing' item added in startDocumentProcessing might be gone.
-                    // If a worker finishes for a document not currently in our list,
-                    // it means a new document was successfully processed while the app was backgrounded/closed.
-                    // In this case, the simplest approach is to reload the entire list to capture the new document.
-                    if (workInfo.getState().isFinished()) { // Check if the worker is in a finished state (SUCCEEDED, FAILED, CANCELLED)
-                        Log.d(TAG, "Worker finished for an item not found in the current list. Reloading list.");
-                        loadDocuments(); // Reload the list to add the newly processed document
-                    }
+                } else if (workInfo.getState().isFinished()) {
+                    loadFilesAndCollections();
                 }
             }
         });
     }
 
-
-    /**
-     * Helper method to get the display name from a file URI.
-     * Used when a file is selected from the picker.
-     *
-     * @param uri The URI of the selected file.
-     * @return The file name string.
-     */
     private String getFileNameFromUri(Uri uri) {
         String fileName = "unknown_file";
-        // Use OpenableColumns to get the display name from a content URI
-        Cursor cursor = null;
-        try {
-            cursor = getContentResolver().query(uri, null, null, null, null);
-            if (cursor != null) {
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
                 int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (nameIndex != -1 && cursor.moveToFirst()) {
-                    fileName = cursor.getString(nameIndex);
-                }
+                if (nameIndex != -1) fileName = cursor.getString(nameIndex);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error getting file name from URI", e);
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+            Log.e(TAG, "Error getting file name", e);
         }
         return fileName;
     }
 
-
-    // --- Implementation of FileAdapter.OnItemClickListener methods ---
-
-    /**
-     * Handles clicks on the original file information area in a list item.
-     * Should open the original document.
-     *
-     * @param document The StoredDocument associated with the clicked item.
-     */
     @Override
     public void onFileClick(StoredDocument document) {
-        Log.d(TAG, "File clicked: " + document.getOriginalFilePath());
-        // Open the original file
         openFile(new File(document.getOriginalFilePath()));
     }
 
-    /**
-     * Handles clicks on the audio play button in a list item.
-     * Should play the associated audio file.
-     *
-     * @param document The StoredDocument associated with the clicked item.
-     */
     @Override
     public void onAudioPlayClick(StoredDocument document) {
-        Log.d(TAG, "Audio play clicked for: " + document.getOriginalFilePath());
         if (document.getAudioFilePath() != null) {
             playAudio(new File(document.getAudioFilePath()), document);
-        } else {
-            Log.w(TAG, "Audio file path is null for document: " + document.getOriginalFilePath());
-            Toast.makeText(this, "Audio not available for this document.", Toast.LENGTH_SHORT).show();
         }
     }
 
-    // --- End Implementation of FileAdapter.OnItemClickListener methods ---
-
-
-    /**
-     * Opens a file using an Intent.
-     * Requires a FileProvider for sharing files from app-specific storage.
-     *
-     * @param file The File object to open.
-     */
     private void openFile(File file) {
-        if (!file.exists()) {
-            Toast.makeText(this, "File not found.", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "File not found at: " + file.getAbsolutePath());
-            return;
-        }
-        // Use FileProvider to get a content URI for the file.
-        // This is crucial for securely sharing files from your app's internal/external storage
-        // with other apps, especially on modern Android (Nougat and above).
+        if (!file.exists()) return;
         Uri fileUri;
         try {
-            // Authority must match the authority defined in your AndroidManifest.xml FileProvider
-            fileUri = FileProvider.getUriForFile(this, getApplicationContext().getPackageName() + ".provider", file);
+            fileUri = FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
         } catch (IllegalArgumentException e) {
-            Log.e(TAG, "The selected file can't be shared via FileProvider: " + file.getAbsolutePath(), e);
-            Toast.makeText(this, "Cannot open this file type or location.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-
         Intent intent = new Intent(Intent.ACTION_VIEW);
-        // Determine MIME type based on file extension to help the system find a suitable app
         String mimeType = getMimeType(file.getAbsolutePath());
         intent.setDataAndType(fileUri, mimeType);
-
-        // Grant read permissions to the receiving app for this specific URI
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-        // Add flag to open in a new task (optional, but common for ACTION_VIEW)
-        // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
 
         try {
             startActivity(intent);
         } catch (Exception e) {
-            // Catch ActivityNotFoundException or other issues if no app can handle the intent
-            Log.e(TAG, "No application found to open this file type (" + mimeType + "): " + e.getMessage(), e);
-            Toast.makeText(this, "No application found to open this file type.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No application found to open this file.", Toast.LENGTH_SHORT).show();
         }
     }
 
-    /**
-     * Helper to get the MIME type of a file based on its extension.
-     *
-     * @param url The file path or URL string.
-     * @return The MIME type string, or "* /*" if unknown.
-     */
     private String getMimeType(String url) {
         String type = null;
         String extension = MimeTypeMap.getFileExtensionFromUrl(url);
         if (extension != null) {
-            type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase(Locale.US)); // Use Locale.US
+            type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase(Locale.US));
         }
-        return type != null ? type : "*/*"; // Default to generic if type is unknown
+        return type != null ? type : "*/*";
     }
 
-
-    /**
-     * Plays an audio file using MediaPlayer.
-     * Manages stopping the currently playing audio if a new one is selected.
-     *
-     * @param audioFile The audio File object to play.
-     * @param document  The StoredDocument object this audio belongs to.
-     */
     private void playAudio(File audioFile, StoredDocument document) {
-        if (!audioFile.exists()) {
-            Toast.makeText(this, "Audio file not found.", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "Audio file not found at: " + audioFile.getAbsolutePath());
-            return;
-        }
-
-        // Stop currently playing audio if any
+        if (!audioFile.exists()) return;
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-            // Check if the clicked document's audio is already playing
-            if (currentlyPlayingDocument != null && currentlyPlayingDocument.equals(document)) {
-                // Clicking the same audio file - maybe pause or stop? Let's stop and restart.
-                Log.d(TAG, "Stopping currently playing audio for the same document.");
-                releaseMediaPlayer(); // Release and prepare to play again from start
-            } else {
-                // Playing a different file - stop the current one and release
-                Log.d(TAG, "Stopping currently playing audio for a different document.");
-                releaseMediaPlayer();
-            }
+            releaseMediaPlayer();
+            if (currentlyPlayingDocument != null && currentlyPlayingDocument.equals(document)) return;
         }
-
-        // Initialize and start new playback
         try {
             mediaPlayer = new MediaPlayer();
-            // Set the data source using the file path
             mediaPlayer.setDataSource(audioFile.getAbsolutePath());
-
-            // Prepare the player asynchronously to avoid blocking the UI thread
             mediaPlayer.prepareAsync();
-
-            // Listener for when the media player is prepared
             mediaPlayer.setOnPreparedListener(mp -> {
-                mp.start(); // Start playback when prepared
-                currentlyPlayingDocument = document; // Set the currently playing document
-                Log.d(TAG, "Audio playback started for: " + audioFile.getName());
-                Toast.makeText(this, "Playing audio.", Toast.LENGTH_SHORT).show();
+                mp.start();
+                currentlyPlayingDocument = document;
             });
-
-            // Listener for when playback completes
-            mediaPlayer.setOnCompletionListener(mp -> {
-                Log.d(TAG, "Audio playback completed.");
-                releaseMediaPlayer(); // Release resources after playback
-                Toast.makeText(this, "Audio playback finished.", Toast.LENGTH_SHORT).show();
-            });
-
-            // Listener for playback errors
+            mediaPlayer.setOnCompletionListener(mp -> releaseMediaPlayer());
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(TAG, "MediaPlayer error: what=" + what + ", extra=" + extra + " for file: " + audioFile.getName());
-                Toast.makeText(this, "Error playing audio.", Toast.LENGTH_SHORT).show();
-                releaseMediaPlayer(); // Release resources on error
-                return true; // Return true to indicate the error was handled
+                releaseMediaPlayer();
+                return true;
             });
-
-        } catch (IOException e) {
-            Log.e(TAG, "Error setting data source or preparing MediaPlayer for " + audioFile.getName() + ": " + e.getMessage(), e);
-            Toast.makeText(this, "Error playing audio.", Toast.LENGTH_SHORT).show();
-            releaseMediaPlayer(); // Release resources on error
         } catch (Exception e) {
-            // Catch any other unexpected errors during setup/playback
-            Log.e(TAG, "Unexpected error during MediaPlayer setup for " + audioFile.getName() + ": " + e.getMessage(), e);
-            Toast.makeText(this, "An error occurred during audio playback.", Toast.LENGTH_SHORT).show();
             releaseMediaPlayer();
         }
     }
-
-    // Re-use the getVisionDocumentsFolder method from the Worker if needed elsewhere,
-    // but in this activity, we already set it up in onCreate.
-
 }

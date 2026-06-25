@@ -1,103 +1,49 @@
 package com.example.vision1;
 
+import java.io.File;
 import java.util.Objects;
 
-public class StoredDocument {
+public class StoredDocument implements StorageItem {
 
     private String originalFilePath;
-    private String audioFilePath; // Will be null initially, until generated
-    private boolean isProcessing; // Optional: Flag to indicate if the document is currently being processed (extraction/TTS)
+    private String audioFilePath;
+    private boolean isProcessing;
 
-    /**
-     * Constructor for a new StoredDocument.
-     * The audioFilePath is initially null.
-     *
-     * @param originalFilePath The absolute path to the original file stored locally.
-     */
     public StoredDocument(String originalFilePath) {
-        // Basic validation (optional but recommended)
         if (originalFilePath == null || originalFilePath.trim().isEmpty()) {
             throw new IllegalArgumentException("originalFilePath cannot be null or empty");
         }
         this.originalFilePath = originalFilePath;
-        this.audioFilePath = null; // Initially no audio file exists
-        this.isProcessing = false; // Not processing by default
+        this.audioFilePath = null;
+        this.isProcessing = false;
     }
 
-    // --- Getters ---
+    public String getOriginalFilePath() { return originalFilePath; }
+    public String getAudioFilePath() { return audioFilePath; }
+    public boolean isProcessing() { return isProcessing; }
 
-    /**
-     * Gets the absolute path to the original file.
-     *
-     * @return The original file path.
-     */
-    public String getOriginalFilePath() {
-        return originalFilePath;
+    public void setAudioFilePath(String audioFilePath) { this.audioFilePath = audioFilePath; }
+    public void setProcessing(boolean processing) { isProcessing = processing; }
+
+    // Implement StorageItem interface
+    @Override
+    public int getItemType() { return TYPE_DOCUMENT; }
+
+    @Override
+    public String getName() {
+        return new File(originalFilePath).getName();
     }
-
-    /**
-     * Gets the absolute path to the generated audio file.
-     *
-     * @return The audio file path, or null if not yet generated or failed.
-     */
-    public String getAudioFilePath() {
-        return audioFilePath;
-    }
-
-    /**
-     * Checks if the document is currently being processed (text extraction, TTS).
-     *
-     * @return True if processing, false otherwise.
-     */
-    public boolean isProcessing() {
-        return isProcessing;
-    }
-
-    // --- Setters ---
-
-    /**
-     * Sets the absolute path to the generated audio file.
-     * Use null if audio generation failed or the audio file is removed.
-     *
-     * @param audioFilePath The audio file path, or null.
-     */
-    public void setAudioFilePath(String audioFilePath) {
-        this.audioFilePath = audioFilePath;
-    }
-
-    /**
-     * Sets the processing state of the document.
-     *
-     * @param processing True if processing, false otherwise.
-     */
-    public void setProcessing(boolean processing) {
-        isProcessing = processing;
-    }
-
-    // --- Optional: equals() and hashCode() for better list management/comparison ---
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StoredDocument that = (StoredDocument) o;
-        // Primarily compare based on the unique original file path
         return Objects.equals(originalFilePath, that.originalFilePath);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(originalFilePath);
-    }
-
-    // --- Optional: toString() for logging/debugging ---
-
-    @Override
-    public String toString() {
-        return "StoredDocument{" +
-                "originalFilePath='" + originalFilePath + '\'' +
-                ", audioFilePath='" + audioFilePath + '\'' +
-                ", isProcessing=" + isProcessing +
-                '}';
     }
 }
