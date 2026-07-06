@@ -2,8 +2,13 @@ package com.example.vision1;
 
 import android.content.ClipData;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.pdf.PdfRenderer;
 import android.media.ThumbnailUtils;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.view.DragEvent;
 import android.view.LayoutInflater;
@@ -18,6 +23,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -25,9 +32,12 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private Context context;
     private OnItemInteractionListener listener;
 
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
     public interface OnItemInteractionListener {
         void onFileClick(StoredDocument document);
-        void onAudioPlayClick(StoredDocument document);
+        void onAudioPlayClick(StoredDocument document); // Restored for non-PDFs
         void onCollectionClick(DocumentCollection collection);
         void onCollectionLongClick(DocumentCollection collection, View anchorView);
         void onItemDropped(StorageItem draggedItem, StorageItem targetItem);
@@ -60,67 +70,61 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         StorageItem item = itemList.get(position);
 
-        // --- Setup Drag and Drop Mechanics ---
-        // Allow ONLY documents to be dragged (you cannot drag a collection inside another collection)
         if (item.getItemType() == StorageItem.TYPE_DOCUMENT) {
             holder.itemView.setOnLongClickListener(v -> {
                 ClipData data = ClipData.newPlainText("", "");
                 View.DragShadowBuilder shadowBuilder = new View.DragShadowBuilder(v);
-                // We pass the actual item as the "Local State" so we know EXACTLY what was dragged
                 v.startDragAndDrop(data, shadowBuilder, item, 0);
                 return true;
             });
         } else {
-            // Collections listen for Long Clicks to trigger Edit/Delete menu
             holder.itemView.setOnLongClickListener(v -> {
                 listener.onCollectionLongClick((DocumentCollection) item, v);
                 return true;
             });
         }
 
-        // Allow both Documents and Collections to act as DROP TARGETS
         holder.itemView.setOnDragListener((v, event) -> {
             switch (event.getAction()) {
-                case DragEvent.ACTION_DRAG_ENTERED:
-                    v.setAlpha(0.6f); // Visual feedback when hovering over an item
-                    break;
+                case DragEvent.ACTION_DRAG_ENTERED: v.setAlpha(0.6f); break;
                 case DragEvent.ACTION_DRAG_EXITED:
-                case DragEvent.ACTION_DRAG_ENDED:
-                    v.setAlpha(1.0f); // Restore transparency
-                    break;
+                case DragEvent.ACTION_DRAG_ENDED: v.setAlpha(1.0f); break;
                 case DragEvent.ACTION_DROP:
                     v.setAlpha(1.0f);
                     StorageItem draggedItem = (StorageItem) event.getLocalState();
-                    if (draggedItem != item) { // Make sure they didn't drop it on itself
-                        listener.onItemDropped(draggedItem, item);
-                    }
+                    if (draggedItem != item) listener.onItemDropped(draggedItem, item);
                     break;
             }
             return true;
         });
 
-        // --- Render UI ---
         if (holder instanceof DocumentViewHolder) {
             StoredDocument doc = (StoredDocument) item;
             DocumentViewHolder docHolder = (DocumentViewHolder) holder;
             File originalFile = new File(doc.getOriginalFilePath());
+            boolean isPdf = originalFile.getName().toLowerCase().endsWith(".pdf");
 
             docHolder.fileName.setText(originalFile.getName());
+            docHolder.filePreview.setImageBitmap(null);
 
             if (isImage(originalFile)) {
                 docHolder.filePreview.setImageBitmap(BitmapFactory.decodeFile(originalFile.getAbsolutePath()));
             } else if (isVideo(originalFile)) {
                 docHolder.filePreview.setImageBitmap(ThumbnailUtils.createVideoThumbnail(originalFile.getAbsolutePath(), MediaStore.Images.Thumbnails.MINI_KIND));
+            } else if (isPdf) {
+                loadPdfThumbnail(originalFile, docHolder.filePreview);
             } else {
-                docHolder.filePreview.setImageResource(android.R.drawable.ic_menu_agenda); // fallback generic icon
+                docHolder.filePreview.setImageResource(android.R.drawable.ic_menu_agenda);
             }
 
             if (doc.isProcessing()) {
-                docHolder.audioPlayButton.setVisibility(View.GONE);
                 docHolder.processingProgress.setVisibility(View.VISIBLE);
+                docHolder.audioPlayButton.setVisibility(View.GONE);
             } else {
                 docHolder.processingProgress.setVisibility(View.GONE);
-                if (doc.getAudioFilePath() != null && new File(doc.getAudioFilePath()).exists()) {
+
+                // Show play button ONLY if audio exists AND it is NOT a PDF
+                if (!isPdf && doc.getAudioFilePath() != null && new File(doc.getAudioFilePath()).exists()) {
                     docHolder.audioPlayButton.setVisibility(View.VISIBLE);
                 } else {
                     docHolder.audioPlayButton.setVisibility(View.GONE);
@@ -133,10 +137,8 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         } else if (holder instanceof CollectionViewHolder) {
             DocumentCollection collection = (DocumentCollection) item;
             CollectionViewHolder colHolder = (CollectionViewHolder) holder;
-
             colHolder.collectionName.setText(collection.getName());
 
-            // Render up to 4 mini previews
             ImageView[] previews = {colHolder.prev1, colHolder.prev2, colHolder.prev3, colHolder.prev4};
             List<StoredDocument> docs = collection.getDocuments();
 
@@ -155,22 +157,33 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
-    @Override
-    public int getItemCount() {
-        return itemList.size();
+    private void loadPdfThumbnail(File pdfFile, ImageView imageView) {
+        executor.execute(() -> {
+            try {
+                ParcelFileDescriptor pfd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
+                PdfRenderer renderer = new PdfRenderer(pfd);
+                if (renderer.getPageCount() > 0) {
+                    PdfRenderer.Page page = renderer.openPage(0);
+                    Bitmap bitmap = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888);
+                    bitmap.eraseColor(android.graphics.Color.WHITE);
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                    page.close();
+                    renderer.close();
+
+                    mainHandler.post(() -> imageView.setImageBitmap(bitmap));
+                }
+            } catch (Exception e) { }
+        });
     }
 
-    public void updateList(List<StorageItem> newList) {
-        itemList = newList;
-        notifyDataSetChanged();
-    }
+    @Override
+    public int getItemCount() { return itemList.size(); }
+    public void updateList(List<StorageItem> newList) { itemList = newList; notifyDataSetChanged(); }
+    private boolean isImage(File file) { return file.getName().toLowerCase().matches(".*\\.(jpg|jpeg|png|gif)$"); }
+    private boolean isVideo(File file) { return file.getName().toLowerCase().matches(".*\\.(mp4|mkv|avi|mov)$"); }
 
     static class DocumentViewHolder extends RecyclerView.ViewHolder {
-        TextView fileName;
-        ImageView filePreview;
-        ImageView audioPlayButton;
-        ProgressBar processingProgress;
-
+        TextView fileName; ImageView filePreview; ImageView audioPlayButton; ProgressBar processingProgress;
         public DocumentViewHolder(View itemView) {
             super(itemView);
             fileName = itemView.findViewById(R.id.file_name);
@@ -179,11 +192,8 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             processingProgress = itemView.findViewById(R.id.processing_progress);
         }
     }
-
     static class CollectionViewHolder extends RecyclerView.ViewHolder {
-        TextView collectionName;
-        ImageView prev1, prev2, prev3, prev4;
-
+        TextView collectionName; ImageView prev1, prev2, prev3, prev4;
         public CollectionViewHolder(View itemView) {
             super(itemView);
             collectionName = itemView.findViewById(R.id.collection_name);
@@ -192,15 +202,5 @@ public class FileAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             prev3 = itemView.findViewById(R.id.prev3);
             prev4 = itemView.findViewById(R.id.prev4);
         }
-    }
-
-    private boolean isImage(File file) {
-        String name = file.getName().toLowerCase();
-        return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".gif");
-    }
-
-    private boolean isVideo(File file) {
-        String name = file.getName().toLowerCase();
-        return name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov");
     }
 }

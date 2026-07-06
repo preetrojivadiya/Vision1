@@ -18,6 +18,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <ImageView
+        android:id="@+id/audio_play_button"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:src="@android:drawable/ic_media_play"
+        android:background="#88000000"
+        app:tint="@color/white"
+        app:layout_constraintBottom_toBottomOf="@id/file_preview"
+        app:layout_constraintEnd_toEndOf="@id/file_preview"
+        android:layout_margin="4dp"
+        android:visibility="gone"/>
+
     <ProgressBar
         android:id="@+id/processing_progress"
         android:layout_width="24dp"

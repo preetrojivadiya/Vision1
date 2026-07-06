@@ -32,6 +32,8 @@
         <activity android:name=".PersonalDetailsActivity"/>
         <activity android:name=".SettingsActivity"/>
         <activity android:name=".EditHomeLayoutActivity"/>
+        <activity android:name=".PdfViewerActivity" />
+        <activity android:name=".ImageViewerActivity" />
 
         <activity
             android:name=".MainActivity"
