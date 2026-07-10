@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.utils;
 
 import android.content.Context;
 import android.os.Bundle;

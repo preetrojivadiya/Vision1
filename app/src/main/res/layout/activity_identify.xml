@@ -10,7 +10,7 @@
         android:layout_height="match_parent"
         android:layout_above="@id/bottom_panel" />
 
-    <com.example.vision1.ObjectOverlayView
+    <com.example.vision1.detection.ObjectOverlayView
         android:id="@+id/objectOverlayView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

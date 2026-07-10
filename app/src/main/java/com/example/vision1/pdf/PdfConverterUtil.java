@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.pdf;
 
 import android.graphics.Canvas;
 import android.graphics.Color;

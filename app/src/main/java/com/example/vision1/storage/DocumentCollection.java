@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.storage;
 
 import java.util.ArrayList;
 import java.util.List;

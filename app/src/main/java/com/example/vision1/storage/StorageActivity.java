@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.storage;
 
 import android.Manifest;
 import android.app.AlertDialog;
@@ -14,7 +14,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.webkit.MimeTypeMap;
@@ -36,6 +35,9 @@ import androidx.work.Data;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
+
+import com.example.vision1.pdf.PdfViewerActivity;
+import com.example.vision1.R;
 
 import org.json.JSONArray;
 import org.json.JSONException;

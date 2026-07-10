@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.gallery;
 
 import android.net.Uri;
 import java.io.File;

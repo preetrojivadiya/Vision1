@@ -23,17 +23,17 @@
         tools:targetApi="31"
         android:requestLegacyExternalStorage="true">
 
-        <activity android:name=".CameraActivity"/>
-        <activity android:name=".StorageActivity"/>
-        <activity android:name=".ImageGalleryActivity"/>
-        <activity android:name=".IdentifyActivity"/>
+        <activity android:name=".camera.CameraActivity"/>
+        <activity android:name=".storage.StorageActivity"/>
+        <activity android:name=".gallery.ImageGalleryActivity"/>
+        <activity android:name=".detection.IdentifyActivity"/>
 
         <activity android:name=".ProfileActivity"/>
         <activity android:name=".PersonalDetailsActivity"/>
         <activity android:name=".SettingsActivity"/>
         <activity android:name=".EditHomeLayoutActivity"/>
-        <activity android:name=".PdfViewerActivity" />
-        <activity android:name=".ImageViewerActivity" />
+        <activity android:name=".pdf.PdfViewerActivity" />
+        <activity android:name=".gallery.ImageViewerActivity" />
 
         <activity
             android:name=".MainActivity"

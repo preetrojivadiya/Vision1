@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.detection;
 
 import android.content.Context;
 import android.graphics.Canvas;

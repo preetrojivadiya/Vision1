@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.storage;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 // Import PdfBox-Android classes (com.tom_roush)
+import com.example.vision1.pdf.PdfConverterUtil;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;

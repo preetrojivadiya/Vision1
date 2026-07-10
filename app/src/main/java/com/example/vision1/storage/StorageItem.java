@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.storage;
 
 public interface StorageItem {
     int TYPE_DOCUMENT = 0;

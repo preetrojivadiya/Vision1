@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.gallery;
 
 import android.Manifest;
 import android.app.AlertDialog;
@@ -17,6 +17,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.vision1.R;
 
 import java.io.File;
 import java.util.ArrayList;

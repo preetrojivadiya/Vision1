@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.camera;
 
 import android.Manifest;
 import android.content.Intent;
@@ -26,6 +26,9 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.vision1.gallery.ImageGalleryActivity;
+import com.example.vision1.R;
+import com.example.vision1.utils.TextToSpeechHelper;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;

@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.utils;
 
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;

@@ -1,4 +1,4 @@
-package com.example.vision1;
+package com.example.vision1.gallery;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -12,6 +12,8 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.vision1.R;
 
 import java.io.File;
 import java.io.IOException;
