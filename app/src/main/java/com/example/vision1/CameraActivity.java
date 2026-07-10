@@ -19,6 +19,8 @@ import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
+import androidx.camera.core.resolutionselector.ResolutionSelector;
+import androidx.camera.core.resolutionselector.ResolutionStrategy;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
@@ -141,12 +143,23 @@ public class CameraActivity extends AppCompatActivity {
             try {
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
                 CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
+
                 Preview preview = new Preview.Builder().build();
-                imageCapture = new ImageCapture.Builder().build();
+
+                // FIX: Force High Resolution 50MP UHD Capture
+                ResolutionSelector captureResolutionSelector = new ResolutionSelector.Builder()
+                        .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                        .build();
+
+                imageCapture = new ImageCapture.Builder()
+                        .setResolutionSelector(captureResolutionSelector)
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY) // Maximizes sensor output
+                        .build();
 
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
+
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera: " + e.getMessage());
             }

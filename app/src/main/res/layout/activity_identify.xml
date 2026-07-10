@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".IdentifyActivity">
+    android:background="#000000">
 
     <androidx.camera.view.PreviewView
         android:id="@+id/identifyPreviewView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:layout_above="@id/bottom_panel" />
 
     <com.example.vision1.ObjectOverlayView
         android:id="@+id/objectOverlayView"
@@ -22,15 +21,60 @@
 
     <TextView
         android:id="@+id/identifiedTextView"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="16dp"
-        android:background="#80000000"
-        android:padding="8dp"
+        android:layout_alignBottom="@id/identifyPreviewView"
+        android:background="#B3000000"
+        android:padding="16dp"
+        android:gravity="center"
         android:textColor="@android:color/white"
-        android:textSize="20sp"
-        android:text="Identifying..." />
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:text="Select a scanning mode below" />
 
+    <!-- 3-Button Control Panel -->
+    <LinearLayout
+        android:id="@+id/bottom_panel"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:background="#121212"
+        android:gravity="center"
+        android:padding="8dp"
+        android:weightSum="3">
+
+        <Button
+            android:id="@+id/btn_mode_detect"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:textSize="11sp"
+            android:backgroundTint="#3f8efc"
+            android:textColor="@color/white"
+            android:text="Detection" />
+
+        <Button
+            android:id="@+id/btn_mode_identify"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:textSize="11sp"
+            android:backgroundTint="#333333"
+            android:textColor="@color/white"
+            android:text="Identifier" />
+
+        <Button
+            android:id="@+id/btn_mode_scene"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:textSize="11sp"
+            android:backgroundTint="#333333"
+            android:textColor="@color/white"
+            android:text="Describe Scene" />
+    </LinearLayout>
 </RelativeLayout>

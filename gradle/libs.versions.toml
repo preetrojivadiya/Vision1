@@ -32,6 +32,8 @@ poiOoxml = "5.4.1"
 poiScratchpad = "5.4.1"
 textRecognition = "16.0.1"
 pdfboxAndroid = "2.0.27.0"
+imageLabelingCommon = "18.1.0"
+mlkitImageLabeling = "17.0.9"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -66,6 +68,8 @@ poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poiOo
 poi-scratchpad = { group = "org.apache.poi", name = "poi-scratchpad", version.ref = "poiScratchpad" }
 text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "textRecognition" }
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfboxAndroid" }
+image-labeling-common = { group = "com.google.mlkit", name = "image-labeling-common", version.ref = "imageLabelingCommon" }
+mlkit-image-labeling = { module = "com.google.mlkit:image-labeling", version.ref = "mlkitImageLabeling" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

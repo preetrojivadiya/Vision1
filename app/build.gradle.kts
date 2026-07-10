@@ -76,6 +76,9 @@ dependencies {
     implementation(libs.poi.scratchpad)
     implementation(libs.text.recognition)
     implementation(libs.pdfbox.android)
+    //implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation(libs.image.labeling.common)
+    implementation(libs.mlkit.image.labeling)
     //implementation(libs.tensorflow.lite.task.vision)
     //implementation(libs.tensorflow.lite.gpu)
 
@@ -83,6 +86,8 @@ dependencies {
     testImplementation(libs.androidx.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
+
 
 
 }
