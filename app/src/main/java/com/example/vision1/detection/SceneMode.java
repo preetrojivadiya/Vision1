@@ -19,18 +19,16 @@ public class SceneMode implements VisionMode {
             return;
         }
 
-        // Count occurrences of each object
         Map<String, Integer> counts = new HashMap<>();
         for (ObjectDetector.Detection d : results) {
             counts.put(d.label, counts.getOrDefault(d.label, 0) + 1);
         }
 
-        // Build a natural human sentence
         StringBuilder sb = new StringBuilder("The scene contains ");
         int i = 0;
         for (Map.Entry<String, Integer> entry : counts.entrySet()) {
             sb.append(entry.getValue()).append(" ").append(entry.getKey());
-            if (entry.getValue() > 1) sb.append("s"); // Make plural
+            if (entry.getValue() > 1) sb.append("s");
 
             if (i == counts.size() - 2) sb.append(", and ");
             else if (i < counts.size() - 2) sb.append(", ");
@@ -40,9 +38,10 @@ public class SceneMode implements VisionMode {
         String description = sb.toString();
         activity.updateUI(description, results);
 
-        if (System.currentTimeMillis() - lastSpeakTime > SCENE_THROTTLE) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastSpeakTime > SCENE_THROTTLE) {
             activity.speakText(description);
-            lastSpeakTime = System.currentTimeMillis();
+            lastSpeakTime = currentTime;
         }
     }
 

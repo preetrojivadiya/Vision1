@@ -11,6 +11,7 @@ import com.example.vision1.camera.CameraActivity;
 import com.example.vision1.detection.IdentifyActivity;
 import com.example.vision1.storage.StorageActivity;
 
+
 public class MainActivity extends Activity {
 
     int[] containerIds = {

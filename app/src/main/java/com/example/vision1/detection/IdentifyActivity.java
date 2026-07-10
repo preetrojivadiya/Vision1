@@ -22,9 +22,9 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.example.vision1.detection.ObjectDetector;
-import com.example.vision1.R;
 import com.example.vision1.utils.ImageUtils;
+import com.example.vision1.detection.ObjectOverlayView;
+import com.example.vision1.R;
 import com.example.vision1.utils.TextToSpeechHelper;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.text.TextRecognition;
@@ -41,7 +41,6 @@ public class IdentifyActivity extends AppCompatActivity {
     private enum Mode { DETECTION, IDENTIFY, SCENE }
     private VisionMode currentModeHandler;
 
-    // Mode Instances
     private DetectionMode detectionMode;
     private IdentifierMode identifierMode;
     private SceneMode sceneMode;
@@ -92,8 +91,8 @@ public class IdentifyActivity extends AppCompatActivity {
         }
 
         try {
-            // Update the model file name here if your actual tflite file is named differently
-            objectDetector = new ObjectDetector(this, "yolov26s_float32.tflite", "your_labels.txt");
+            // Check your exact file name in the assets folder!
+            objectDetector = new ObjectDetector(this, "yolo26s_float32.tflite", "your_labels.txt");
         } catch (IOException e) {
             Toast.makeText(this, "Error loading YOLO model", Toast.LENGTH_SHORT).show();
         }
@@ -149,7 +148,6 @@ public class IdentifyActivity extends AppCompatActivity {
                     Bitmap bitmap = ImageUtils.imageProxyToBitmap(imageProxy);
                     if (bitmap != null && objectDetector != null) {
                         Bitmap rotatedBitmap = ImageUtils.rotateBitmap(bitmap, imageProxy.getImageInfo().getRotationDegrees());
-                        // Pass execution to the active mode!
                         currentModeHandler.process(rotatedBitmap, objectDetector, this);
                     }
                     imageProxy.close();
@@ -170,12 +168,10 @@ public class IdentifyActivity extends AppCompatActivity {
         if (requestCode == 10 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) startCamera();
     }
 
-    // --- Helper Methods EXPOSED for the Modes to Use ---
-
     public void updateUI(String text, List<ObjectDetector.Detection> boxes) {
         runOnUiThread(() -> {
             identifiedTextView.setText(text);
-            if (boxes != null) objectOverlayView.setResults(boxes);
+            objectOverlayView.setResults(boxes);
         });
     }
 

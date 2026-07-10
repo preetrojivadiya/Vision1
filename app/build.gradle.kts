@@ -44,6 +44,9 @@ android {
             excludes +="META-INF/DEPENDENCIES"
         }
     }
+    androidResources {
+        noCompress("tflite")
+    }
 }
 
 dependencies {
