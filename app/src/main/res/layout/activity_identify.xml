@@ -10,7 +10,6 @@
         android:layout_height="match_parent"
         android:layout_above="@id/bottom_panel" />
 
-    <!-- FIX 1: Updated the package path to include .detection -->
     <com.example.vision1.detection.ObjectOverlayView
         android:id="@+id/objectOverlayView"
         android:layout_width="match_parent"
@@ -33,7 +32,6 @@
         android:textStyle="bold"
         android:text="Select a scanning mode below" />
 
-    <!-- FIX 2: Added the 3 buttons so the Java code doesn't crash -->
     <LinearLayout
         android:id="@+id/bottom_panel"
         android:layout_width="match_parent"

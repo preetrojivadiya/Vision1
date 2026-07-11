@@ -1,6 +1,8 @@
+// ImageUtils.java
 package com.example.vision1.utils;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.media.Image;
@@ -20,54 +22,83 @@ public class ImageUtils {
             return null;
         }
 
-        if (mediaImage.getFormat() == ImageFormat.YUV_420_888) {
-            ByteBuffer yBuffer = mediaImage.getPlanes()[0].getBuffer();
-            ByteBuffer uBuffer = mediaImage.getPlanes()[1].getBuffer();
-            ByteBuffer vBuffer = mediaImage.getPlanes()[2].getBuffer();
+        if (mediaImage.getFormat() != ImageFormat.YUV_420_888) {
+            Log.e(TAG, "Unsupported image format: " + mediaImage.getFormat());
+            return null;
+        }
 
-            int ySize = yBuffer.remaining();
-            int uSize = uBuffer.remaining();
-            int vSize = vBuffer.remaining();
+        int width = mediaImage.getWidth();
+        int height = mediaImage.getHeight();
 
-            byte[] nv21 = new byte[ySize + uSize + vSize];
+        Image.Plane[] planes = mediaImage.getPlanes();
+        ByteBuffer yBuffer = planes[0].getBuffer();
+        ByteBuffer uBuffer = planes[1].getBuffer();
+        ByteBuffer vBuffer = planes[2].getBuffer();
 
-            yBuffer.get(nv21, 0, ySize);
-            vBuffer.get(nv21, ySize, vSize);
-            uBuffer.get(nv21, ySize + vSize, uSize);
+        yBuffer.rewind();
+        uBuffer.rewind();
+        vBuffer.rewind();
 
-            try {
-                android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(nv21, ImageFormat.NV21, mediaImage.getWidth(), mediaImage.getHeight(), null);
-                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-                yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, mediaImage.getWidth(), mediaImage.getHeight()), 100, out); // Changed quality to 95
-                byte[] imageBytes = out.toByteArray();
-                return android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-            } catch (Exception e) {
-                Log.e(TAG, "Error converting YUV to JPEG: " + e.getMessage());
-                return null;
-            }
-        } else {
-            // For other formats, try the previous simpler approach
-            ByteBuffer buffer = mediaImage.getPlanes()[0].getBuffer();
-            int width = mediaImage.getWidth();
-            int height = mediaImage.getHeight();
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            buffer.rewind();
-            try {
-                bitmap.copyPixelsFromBuffer(buffer);
-                return bitmap;
-            } catch (Exception e) {
-                Log.e(TAG, "Error converting ImageProxy to Bitmap (other format): " + e.getMessage());
-                return null;
+        byte[] yBytes = new byte[yBuffer.remaining()];
+        byte[] uBytes = new byte[uBuffer.remaining()];
+        byte[] vBytes = new byte[vBuffer.remaining()];
+
+        yBuffer.get(yBytes);
+        uBuffer.get(uBytes);
+        vBuffer.get(vBytes);
+
+        int yRowStride = planes[0].getRowStride();
+        int uvRowStride = planes[1].getRowStride();
+        int uvPixelStride = planes[1].getPixelStride();
+
+        int[] argb = new int[width * height];
+
+        for (int y = 0; y < height; y++) {
+            int yRowOffset = yRowStride * y;
+            int uvRowOffset = uvRowStride * (y >> 1);
+
+            for (int x = 0; x < width; x++) {
+                int yVal = yBytes[yRowOffset + x] & 0xFF;
+                int uvOffset = uvRowOffset + (x >> 1) * uvPixelStride;
+
+                int uVal = uBytes[uvOffset] & 0xFF;
+                int vVal = vBytes[uvOffset] & 0xFF;
+
+                argb[y * width + x] = YuvToRgb(yVal, uVal, vVal);
             }
         }
+
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bitmap.setPixels(argb, 0, width, 0, 0, width, height);
+        return bitmap;
+    }
+
+    private static int YuvToRgb(int y, int u, int v) {
+        int c = y - 16;
+        int d = u - 128;
+        int e = v - 128;
+
+        if (c < 0) c = 0;
+
+        int r = clamp((298 * c + 409 * e + 128) >> 8);
+        int g = clamp((298 * c - 100 * d - 208 * e + 128) >> 8);
+        int b = clamp((298 * c + 516 * d + 128) >> 8);
+
+        return Color.argb(255, r, g, b);
+    }
+
+    private static int clamp(int value) {
+        return Math.max(0, Math.min(255, value));
     }
 
     public static Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
         if (degrees == 0 || bitmap == null) {
             return bitmap;
         }
+
         Matrix matrix = new Matrix();
         matrix.postRotate(degrees);
+
         try {
             Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
             bitmap.recycle();

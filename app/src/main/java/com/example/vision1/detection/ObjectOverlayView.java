@@ -1,3 +1,4 @@
+// ObjectOverlayView.java
 package com.example.vision1.detection;
 
 import android.content.Context;
@@ -9,68 +10,119 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ObjectOverlayView extends View {
 
     private List<ObjectDetector.Detection> results;
-    private Paint boxPaint;
-    private Paint textPaint;
+    private final Paint boxPaint;
+    private final Paint textPaint;
+
+    private int sourceWidth = 0;
+    private int sourceHeight = 0;
 
     public ObjectOverlayView(Context context) {
         super(context);
+        boxPaint = new Paint();
+        textPaint = new Paint();
         init();
     }
 
     public ObjectOverlayView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        boxPaint = new Paint();
+        textPaint = new Paint();
         init();
     }
 
     private void init() {
-        boxPaint = new Paint();
         boxPaint.setColor(Color.GREEN);
         boxPaint.setStyle(Paint.Style.STROKE);
         boxPaint.setStrokeWidth(4.0f);
+        boxPaint.setAntiAlias(true);
 
-        textPaint = new Paint();
         textPaint.setColor(Color.WHITE);
         textPaint.setStyle(Paint.Style.FILL);
         textPaint.setTextSize(48.0f);
+        textPaint.setAntiAlias(true);
+    }
+
+    public void setResults(List<ObjectDetector.Detection> results, int sourceWidth, int sourceHeight) {
+        this.sourceWidth = sourceWidth;
+        this.sourceHeight = sourceHeight;
+
+        if (results == null) {
+            this.results = null;
+        } else {
+            this.results = new ArrayList<>(results);
+        }
+        postInvalidateOnAnimation();
     }
 
     public void setResults(List<ObjectDetector.Detection> results) {
-        this.results = results;
-        invalidate(); // Trigger redraw
+        setResults(results, 0, 0);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        Log.d("OverlayView", "Canvas width" + canvas.getWidth() + "canvas height" + canvas.getHeight());
-        if (results != null) {
-            for (ObjectDetector.Detection result : results) {
-                RectF normalizedBox = result.boundingBox;
-                String label = result.label;
-                float confidence = result.confidence;
 
-                Log.d("OverlayView","Processing Detection"+label+",Normalized BBox["+normalizedBox.left+","+normalizedBox.top+","+normalizedBox.right+","+normalizedBox.bottom+"]");
+        Log.d("OverlayView", "Canvas width=" + canvas.getWidth() + " canvas height=" + canvas.getHeight());
 
-                float left = normalizedBox.left * getWidth();
-                float top = normalizedBox.top * getHeight();
-                float right = normalizedBox.right * getWidth();
-                float bottom = normalizedBox.bottom * getHeight();
+        if (results == null || results.isEmpty()) return;
 
-                RectF scaledBox = new RectF(left, top, right, bottom);
-                Log.d("OverlayView", "Scaled BBox: left=" + scaledBox.left + ", top=" + scaledBox.top + ", right=" + scaledBox.right + ", bottom=" + scaledBox.bottom);
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
+            sourceWidth = getWidth();
+            sourceHeight = getHeight();
+        }
 
-                // Draw bounding box
-                canvas.drawRect(scaledBox, boxPaint);
+        float viewW = getWidth();
+        float viewH = getHeight();
 
-                // Draw label and confidence
-                String text = label + " (" + String.format("%.2f", confidence) + ")";
-                canvas.drawText(text, scaledBox.left, scaledBox.bottom - textPaint.getTextSize(), textPaint);
-            }
+        RectF contentRect = getFitCenterContentRect(viewW, viewH, sourceWidth, sourceHeight);
+
+        for (ObjectDetector.Detection result : results) {
+            RectF normalizedBox = result.boundingBox;
+
+            Log.d("OverlayView", "Processing Detection " + result.label
+                    + ", Normalized BBox[" + normalizedBox.left + ","
+                    + normalizedBox.top + ","
+                    + normalizedBox.right + ","
+                    + normalizedBox.bottom + "]");
+
+            float left = contentRect.left + normalizedBox.left * contentRect.width();
+            float top = contentRect.top + normalizedBox.top * contentRect.height();
+            float right = contentRect.left + normalizedBox.right * contentRect.width();
+            float bottom = contentRect.top + normalizedBox.bottom * contentRect.height();
+
+            RectF scaledBox = new RectF(left, top, right, bottom);
+
+            Log.d("OverlayView", "Scaled BBox: left=" + scaledBox.left
+                    + ", top=" + scaledBox.top
+                    + ", right=" + scaledBox.right
+                    + ", bottom=" + scaledBox.bottom);
+
+            canvas.drawRect(scaledBox, boxPaint);
+
+            String text = result.label + " (" + String.format("%.2f", result.confidence) + ")";
+            float textY = Math.max(textPaint.getTextSize(), scaledBox.top - 10f);
+            canvas.drawText(text, scaledBox.left, textY, textPaint);
+        }
+    }
+
+    private RectF getFitCenterContentRect(float viewW, float viewH, int srcW, int srcH) {
+        float viewAspect = viewW / viewH;
+        float srcAspect = (float) srcW / (float) srcH;
+
+        if (srcAspect > viewAspect) {
+            float scaledH = viewW / srcAspect;
+            float top = (viewH - scaledH) / 2f;
+            return new RectF(0f, top, viewW, top + scaledH);
+        } else {
+            float scaledW = viewH * srcAspect;
+            float left = (viewW - scaledW) / 2f;
+            return new RectF(left, 0f, left + scaledW, viewH);
         }
     }
 }
