@@ -1,4 +1,3 @@
-// ObjectDetector.java
 package com.example.vision1.detection;
 
 import android.content.Context;
@@ -22,7 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ObjectDetector {
+public class ObjectDetector implements AutoCloseable {
 
     private static final String TAG = "Vision1ObjectDetector";
 
@@ -106,9 +105,12 @@ public class ObjectDetector {
             Bitmap preprocessed = letterboxToSquare(bitmap);
             ByteBuffer inputBuffer = convertBitmapToByteBuffer(preprocessed);
 
-            Log.i(TAG, "Input buffer capacity = " + inputBuffer.capacity());
-
             int[] outputShape = tfliteInterpreter.getOutputTensor(0).shape();
+            if (outputShape.length < 3) {
+                Log.e(TAG, "Unexpected output shape: " + Arrays.toString(outputShape));
+                return new ArrayList<>();
+            }
+
             float[][][] rawOutput = new float[outputShape[0]][outputShape[1]][outputShape[2]];
 
             Map<Integer, Object> outputMap = new HashMap<>();
@@ -283,7 +285,8 @@ public class ObjectDetector {
         float intersectionRight = Math.min(r1.right, r2.right);
         float intersectionBottom = Math.min(r1.bottom, r2.bottom);
 
-        float intersectionArea = Math.max(0, intersectionRight - intersectionLeft) * Math.max(0, intersectionBottom - intersectionTop);
+        float intersectionArea = Math.max(0, intersectionRight - intersectionLeft) *
+                Math.max(0, intersectionBottom - intersectionTop);
         float area1 = (r1.right - r1.left) * (r1.bottom - r1.top);
         float area2 = (r2.right - r2.left) * (r2.bottom - r2.top);
         float unionArea = area1 + area2 - intersectionArea;
@@ -326,5 +329,12 @@ public class ObjectDetector {
 
     private float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    @Override
+    public void close() {
+        if (tfliteInterpreter != null) {
+            tfliteInterpreter.close();
+        }
     }
 }

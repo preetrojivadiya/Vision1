@@ -1,50 +1,75 @@
-//package com.example.vision1.detection;
-//
-//import android.graphics.Bitmap;
-//import java.util.HashMap;
-//import java.util.List;
-//import java.util.Map;
-//
-//public class SceneMode implements VisionMode {
-//
-//    private long lastSpeakTime = 0;
-//    private static final long SCENE_THROTTLE = 4000;
-//
-//    @Override
-//    public void process(Bitmap bitmap, ObjectDetector detector, IdentifyActivity activity) {
-//        List<ObjectDetector.Detection> results = detector.detect(bitmap);
-//
-//        if (results == null || results.isEmpty()) {
-//            activity.updateUI("Scanning scene...", null);
-//            return;
-//        }
-//
-//        Map<String, Integer> counts = new HashMap<>();
-//        for (ObjectDetector.Detection d : results) {
-//            counts.put(d.label, counts.getOrDefault(d.label, 0) + 1);
-//        }
-//
-//        StringBuilder sb = new StringBuilder("The scene contains ");
-//        int i = 0;
-//        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-//            sb.append(entry.getValue()).append(" ").append(entry.getKey());
-//            if (entry.getValue() > 1) sb.append("s");
-//
-//            if (i == counts.size() - 2) sb.append(", and ");
-//            else if (i < counts.size() - 2) sb.append(", ");
-//            i++;
-//        }
-//
-//        String description = sb.toString();
-//        activity.updateUI(description, results);
-//
-//        long currentTime = System.currentTimeMillis();
-//        if (currentTime - lastSpeakTime > SCENE_THROTTLE) {
-//            activity.speakText(description);
-//            lastSpeakTime = currentTime;
-//        }
-//    }
-//
-//    @Override
-//    public void reset() {}
-//}
+package com.example.vision1.detection;
+
+import android.graphics.Bitmap;
+
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.label.ImageLabel;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class SceneMode implements VisionMode {
+
+    private long lastSpeakTime = 0;
+    private static final long SCENE_THROTTLE = 4000;
+
+    @Override
+    public void process(Bitmap bitmap, VisionDependencies dependencies, VisionUiController uiController) {
+        if (bitmap == null || dependencies == null || dependencies.getImageLabeler() == null) {
+            uiController.updateUI("Model not ready", null, 0, 0);
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastSpeakTime < SCENE_THROTTLE) {
+            return;
+        }
+
+        InputImage image = InputImage.fromBitmap(bitmap, 0);
+
+        dependencies.getImageLabeler().process(image)
+                .addOnSuccessListener(labels -> {
+                    if (labels == null || labels.isEmpty()) {
+                        uiController.updateUI("Scanning scene...", null, 0, 0);
+                        return;
+                    }
+
+                    List<String> picked = new ArrayList<>();
+                    for (ImageLabel label : labels) {
+                        if (label.getConfidence() >= 0.65f) {
+                            picked.add(label.getText().toLowerCase());
+                        }
+                        if (picked.size() >= 4) break;
+                    }
+
+                    if (picked.isEmpty()) {
+                        uiController.updateUI("Scanning scene...", null, 0, 0);
+                        return;
+                    }
+
+                    String description = buildDescription(picked);
+                    uiController.updateUI(description, null, 0, 0);
+                    uiController.speakText(description);
+                    lastSpeakTime = System.currentTimeMillis();
+                })
+                .addOnFailureListener(e -> uiController.updateUI("Scene analysis failed", null, 0, 0));
+    }
+
+    private String buildDescription(List<String> labels) {
+        StringBuilder sb = new StringBuilder("The scene contains ");
+        for (int i = 0; i < labels.size(); i++) {
+            sb.append(labels.get(i));
+            if (i < labels.size() - 2) {
+                sb.append(", ");
+            } else if (i == labels.size() - 2) {
+                sb.append(", and ");
+            }
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public void reset() {
+        lastSpeakTime = 0;
+    }
+}

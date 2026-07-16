@@ -1,4 +1,3 @@
-// ObjectOverlayView.java
 package com.example.vision1.detection;
 
 import android.content.Context;
@@ -7,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 import java.util.ArrayList;
@@ -64,11 +62,14 @@ public class ObjectOverlayView extends View {
         setResults(results, 0, 0);
     }
 
+    public void clear() {
+        results = null;
+        postInvalidateOnAnimation();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-
-        Log.d("OverlayView", "Canvas width=" + canvas.getWidth() + " canvas height=" + canvas.getHeight());
 
         if (results == null || results.isEmpty()) return;
 
@@ -85,24 +86,12 @@ public class ObjectOverlayView extends View {
         for (ObjectDetector.Detection result : results) {
             RectF normalizedBox = result.boundingBox;
 
-            Log.d("OverlayView", "Processing Detection " + result.label
-                    + ", Normalized BBox[" + normalizedBox.left + ","
-                    + normalizedBox.top + ","
-                    + normalizedBox.right + ","
-                    + normalizedBox.bottom + "]");
-
             float left = contentRect.left + normalizedBox.left * contentRect.width();
             float top = contentRect.top + normalizedBox.top * contentRect.height();
             float right = contentRect.left + normalizedBox.right * contentRect.width();
             float bottom = contentRect.top + normalizedBox.bottom * contentRect.height();
 
             RectF scaledBox = new RectF(left, top, right, bottom);
-
-            Log.d("OverlayView", "Scaled BBox: left=" + scaledBox.left
-                    + ", top=" + scaledBox.top
-                    + ", right=" + scaledBox.right
-                    + ", bottom=" + scaledBox.bottom);
-
             canvas.drawRect(scaledBox, boxPaint);
 
             String text = result.label + " (" + String.format("%.2f", result.confidence) + ")";
