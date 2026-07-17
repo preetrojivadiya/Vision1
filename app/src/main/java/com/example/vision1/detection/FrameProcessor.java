@@ -45,18 +45,14 @@ public class FrameProcessor {
         identifierMode.startSession();
     }
 
-    public void resetIdentifierSession() {
-        identifierMode.reset();
+    public void reset() {
+        if (currentMode != null) {
+            currentMode.reset();
+        }
     }
 
     public void process(Bitmap bitmap) {
         if (bitmap == null || currentMode == null) return;
         currentMode.process(bitmap, dependencies, uiController);
-    }
-
-    public void reset() {
-        if (currentMode != null) {
-            currentMode.reset();
-        }
     }
 }

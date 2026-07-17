@@ -10,8 +10,8 @@
         android:layout_height="match_parent"
         android:layout_above="@id/identifier_control_panel" />
 
-    <com.example.vision1.detection.ObjectOverlayView
-        android:id="@+id/objectOverlayView"
+    <com.example.vision1.detection.VisionOverlayView
+        android:id="@+id/visionOverlayView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_alignStart="@id/identifyPreviewView"

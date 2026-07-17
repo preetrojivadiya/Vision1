@@ -19,7 +19,7 @@ public class DetectionMode implements VisionMode {
     @Override
     public void process(Bitmap bitmap, VisionDependencies dependencies, VisionUiController uiController) {
         if (bitmap == null || dependencies == null || dependencies.getObjectDetector() == null) {
-            uiController.updateUI("Model not ready", null, 0, 0);
+            uiController.updateUI("Model not ready", null, null, 0, 0);
             return;
         }
 
@@ -28,7 +28,7 @@ public class DetectionMode implements VisionMode {
         if (results == null || results.isEmpty()) {
             lastLabel = null;
             stableLabelCount = 0;
-            uiController.updateUI("Scanning for objects...", null, 0, 0);
+            uiController.updateUI("Scanning for objects...", null, null, 0, 0);
             return;
         }
 
@@ -40,6 +40,7 @@ public class DetectionMode implements VisionMode {
         uiController.updateUI(
                 "Detected: " + bestResult.label,
                 results,
+                null,
                 bitmap.getWidth(),
                 bitmap.getHeight()
         );

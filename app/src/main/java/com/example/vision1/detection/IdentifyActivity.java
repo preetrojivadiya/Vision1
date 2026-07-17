@@ -37,7 +37,7 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
 
     private PreviewView previewView;
     private TextView identifiedTextView;
-    private ObjectOverlayView objectOverlayView;
+    private VisionOverlayView visionOverlayView;
 
     private Button btnDetect, btnIdentify, btnScene;
     private Button btnStartIdentifier, btnContinueIdentifier;
@@ -64,7 +64,7 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
 
         previewView = findViewById(R.id.identifyPreviewView);
         identifiedTextView = findViewById(R.id.identifiedTextView);
-        objectOverlayView = findViewById(R.id.objectOverlayView);
+        visionOverlayView = findViewById(R.id.visionOverlayView);
 
         btnDetect = findViewById(R.id.btn_mode_detect);
         btnIdentify = findViewById(R.id.btn_mode_identify);
@@ -154,7 +154,7 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
             identifiedTextView.setText("Scanning...");
         }
 
-        objectOverlayView.clear();
+        visionOverlayView.clear();
     }
 
     private void highlightSelectedButton(VisionModeType modeType) {
@@ -179,7 +179,11 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(
+            int requestCode,
+            @NonNull String[] permissions,
+            @NonNull int[] grantResults
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == REQUEST_CODE_PERMISSIONS && allPermissionsGranted()) {
@@ -198,18 +202,33 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
     }
 
     @Override
-    public void updateUI(String text, List<ObjectDetector.Detection> results, int sourceWidth, int sourceHeight) {
+    public void updateUI(
+            String text,
+            List<ObjectDetector.Detection> results,
+            List<TextAnnotation> textAnnotations,
+            int sourceWidth,
+            int sourceHeight
+    ) {
         runOnUiThread(() -> {
             identifiedTextView.setText(text);
 
-            if (results != null && !results.isEmpty()) {
-                objectOverlayView.setResults(results, sourceWidth, sourceHeight);
+            boolean hasObjects = results != null && !results.isEmpty();
+            boolean hasText = textAnnotations != null && !textAnnotations.isEmpty();
+
+            if (hasObjects) {
+                visionOverlayView.setObjectResults(results, sourceWidth, sourceHeight);
             } else {
-                objectOverlayView.clear();
+                visionOverlayView.setObjectResults(null, sourceWidth, sourceHeight);
             }
 
-            if (currentModeType == VisionModeType.IDENTIFY) {
-                identifierControlPanel.setVisibility(View.VISIBLE);
+            if (hasText) {
+                visionOverlayView.setTextAnnotations(textAnnotations, sourceWidth, sourceHeight);
+            } else {
+                visionOverlayView.setTextAnnotations(null, sourceWidth, sourceHeight);
+            }
+
+            if (!hasObjects && !hasText) {
+                visionOverlayView.clear();
             }
         });
     }

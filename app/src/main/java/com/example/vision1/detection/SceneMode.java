@@ -16,7 +16,7 @@ public class SceneMode implements VisionMode {
     @Override
     public void process(Bitmap bitmap, VisionDependencies dependencies, VisionUiController uiController) {
         if (bitmap == null || dependencies == null || dependencies.getImageLabeler() == null) {
-            uiController.updateUI("Model not ready", null, 0, 0);
+            uiController.updateUI("Model not ready", null, null, 0, 0);
             return;
         }
 
@@ -30,7 +30,7 @@ public class SceneMode implements VisionMode {
         dependencies.getImageLabeler().process(image)
                 .addOnSuccessListener(labels -> {
                     if (labels == null || labels.isEmpty()) {
-                        uiController.updateUI("Scanning scene...", null, 0, 0);
+                        uiController.updateUI("Scanning scene...", null, null, 0, 0);
                         return;
                     }
 
@@ -43,16 +43,16 @@ public class SceneMode implements VisionMode {
                     }
 
                     if (picked.isEmpty()) {
-                        uiController.updateUI("Scanning scene...", null, 0, 0);
+                        uiController.updateUI("Scanning scene...", null, null, 0, 0);
                         return;
                     }
 
                     String description = buildDescription(picked);
-                    uiController.updateUI(description, null, 0, 0);
+                    uiController.updateUI(description, null, null, 0, 0);
                     uiController.speakText(description);
                     lastSpeakTime = System.currentTimeMillis();
                 })
-                .addOnFailureListener(e -> uiController.updateUI("Scene analysis failed", null, 0, 0));
+                .addOnFailureListener(e -> uiController.updateUI("Scene analysis failed", null, null, 0, 0));
     }
 
     private String buildDescription(List<String> labels) {
