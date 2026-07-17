@@ -54,7 +54,6 @@ public class TextToSpeechHelper implements TextToSpeech.OnInitListener {
         return isTtsInitialized;
     }
 
-    // FIX: Silent background saving without blocking the UI
     public void saveToFile(String text, File audioFile) {
         if (!isTtsInitialized || textToSpeech == null) return;
 

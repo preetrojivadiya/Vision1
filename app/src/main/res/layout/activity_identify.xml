@@ -8,7 +8,7 @@
         android:id="@+id/identifyPreviewView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/bottom_panel" />
+        android:layout_above="@id/identifier_control_panel" />
 
     <com.example.vision1.detection.ObjectOverlayView
         android:id="@+id/objectOverlayView"
@@ -31,6 +31,41 @@
         android:textSize="18sp"
         android:textStyle="bold"
         android:text="Select a scanning mode below" />
+
+    <LinearLayout
+        android:id="@+id/identifier_control_panel"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_above="@id/bottom_panel"
+        android:orientation="horizontal"
+        android:background="#121212"
+        android:gravity="center"
+        android:padding="8dp"
+        android:visibility="gone"
+        android:weightSum="2">
+
+        <Button
+            android:id="@+id/btn_start_identifier"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:textSize="12sp"
+            android:backgroundTint="#3f8efc"
+            android:textColor="@color/white"
+            android:text="Start" />
+
+        <Button
+            android:id="@+id/btn_continue_identifier"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:textSize="12sp"
+            android:backgroundTint="#333333"
+            android:textColor="@color/white"
+            android:text="Continue" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/bottom_panel"

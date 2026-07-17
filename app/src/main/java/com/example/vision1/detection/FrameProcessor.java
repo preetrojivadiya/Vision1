@@ -4,21 +4,49 @@ import android.graphics.Bitmap;
 
 public class FrameProcessor {
 
-    private VisionMode currentMode;
     private final VisionDependencies dependencies;
     private final VisionUiController uiController;
+
+    private final DetectionMode detectionMode = new DetectionMode();
+    private final IdentifierMode identifierMode = new IdentifierMode();
+    private final SceneMode sceneMode = new SceneMode();
+
+    private VisionMode currentMode = detectionMode;
 
     public FrameProcessor(VisionDependencies dependencies, VisionUiController uiController) {
         this.dependencies = dependencies;
         this.uiController = uiController;
-        this.currentMode = VisionModeFactory.create(VisionModeType.DETECTION);
     }
 
     public void setMode(VisionModeType type) {
         if (currentMode != null) {
             currentMode.reset();
         }
-        currentMode = VisionModeFactory.create(type);
+
+        switch (type) {
+            case IDENTIFY:
+                currentMode = identifierMode;
+                break;
+            case SCENE:
+                currentMode = sceneMode;
+                break;
+            case DETECTION:
+            default:
+                currentMode = detectionMode;
+                break;
+        }
+    }
+
+    public void startIdentifierSession() {
+        identifierMode.startSession();
+    }
+
+    public void continueIdentifierSession() {
+        identifierMode.startSession();
+    }
+
+    public void resetIdentifierSession() {
+        identifierMode.reset();
     }
 
     public void process(Bitmap bitmap) {

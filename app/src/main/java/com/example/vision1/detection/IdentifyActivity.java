@@ -4,7 +4,9 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -36,7 +38,10 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
     private PreviewView previewView;
     private TextView identifiedTextView;
     private ObjectOverlayView objectOverlayView;
+
     private Button btnDetect, btnIdentify, btnScene;
+    private Button btnStartIdentifier, btnContinueIdentifier;
+    private LinearLayout identifierControlPanel;
 
     private ExecutorService cameraExecutor;
     private TextToSpeechHelper textToSpeechHelper;
@@ -60,9 +65,14 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
         previewView = findViewById(R.id.identifyPreviewView);
         identifiedTextView = findViewById(R.id.identifiedTextView);
         objectOverlayView = findViewById(R.id.objectOverlayView);
+
         btnDetect = findViewById(R.id.btn_mode_detect);
         btnIdentify = findViewById(R.id.btn_mode_identify);
         btnScene = findViewById(R.id.btn_mode_scene);
+
+        btnStartIdentifier = findViewById(R.id.btn_start_identifier);
+        btnContinueIdentifier = findViewById(R.id.btn_continue_identifier);
+        identifierControlPanel = findViewById(R.id.identifier_control_panel);
 
         previewView.setScaleType(PreviewView.ScaleType.FIT_CENTER);
 
@@ -111,6 +121,20 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
         btnDetect.setOnClickListener(v -> setMode(VisionModeType.DETECTION));
         btnIdentify.setOnClickListener(v -> setMode(VisionModeType.IDENTIFY));
         btnScene.setOnClickListener(v -> setMode(VisionModeType.SCENE));
+
+        btnStartIdentifier.setOnClickListener(v -> {
+            if (frameProcessor != null) {
+                frameProcessor.startIdentifierSession();
+                identifiedTextView.setText("Identifier started. Hold the object steady...");
+            }
+        });
+
+        btnContinueIdentifier.setOnClickListener(v -> {
+            if (frameProcessor != null) {
+                frameProcessor.continueIdentifierSession();
+                identifiedTextView.setText("Continue scanning. Hold the object steady...");
+            }
+        });
     }
 
     private void setMode(VisionModeType modeType) {
@@ -121,8 +145,16 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
         }
 
         highlightSelectedButton(modeType);
+
+        if (modeType == VisionModeType.IDENTIFY) {
+            identifierControlPanel.setVisibility(View.VISIBLE);
+            identifiedTextView.setText("Press Start to begin identifier scan");
+        } else {
+            identifierControlPanel.setVisibility(View.GONE);
+            identifiedTextView.setText("Scanning...");
+        }
+
         objectOverlayView.clear();
-        identifiedTextView.setText("Scanning...");
     }
 
     private void highlightSelectedButton(VisionModeType modeType) {
@@ -175,6 +207,10 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
             } else {
                 objectOverlayView.clear();
             }
+
+            if (currentModeType == VisionModeType.IDENTIFY) {
+                identifierControlPanel.setVisibility(View.VISIBLE);
+            }
         });
     }
 
@@ -183,10 +219,6 @@ public class IdentifyActivity extends AppCompatActivity implements VisionUiContr
         if (textToSpeechHelper != null) {
             textToSpeechHelper.speak(text);
         }
-    }
-
-    public TextRecognizer getTextRecognizer() {
-        return textRecognizer;
     }
 
     @Override
